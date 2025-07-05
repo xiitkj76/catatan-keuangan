@@ -4,6 +4,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:apk_catatan_keuangan/provider/transaction.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class StatisticScreen extends StatefulWidget {
   const StatisticScreen({super.key});
@@ -14,6 +17,7 @@ class StatisticScreen extends StatefulWidget {
 
 class _StatisticScreenState extends State<StatisticScreen> {
   String? selectedMonth;
+  int? selectedYear;
   List<String> months = [
     'Januari',
     'Februari',
@@ -28,6 +32,12 @@ class _StatisticScreenState extends State<StatisticScreen> {
     'November',
     'Desember',
   ];
+
+  List<int> getYears() {
+    int currentYear = DateTime.now().year;
+    // Menghasilkan tahun saat ini dan 5 tahun ke belakang
+    return List<int>.generate(6, (index) => currentYear - index);
+  }
 
   String formatRupiah(double number, {bool simplify = false}) {
     if (simplify) {
@@ -48,19 +58,24 @@ class _StatisticScreenState extends State<StatisticScreen> {
 
     for (var tx in transactions) {
       DateTime date;
-      if (tx.date is DateTime) {
-        date = tx.date;
-      } else if (tx['date'] is String) {
-        date = DateTime.parse(tx['date']);
+      double amount;
+      bool isIncome;
+
+      if (tx is Map) {
+        date = DateTime.parse(tx['date'].toString());
+        amount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
+        isIncome = (tx['isIncome'] as bool?) ?? false;
       } else {
-        date = DateTime.now();
+        date = tx.date as DateTime;
+        amount = (tx.amount as num?)?.toDouble() ?? 0.0;
+        isIncome = (tx.isIncome as bool?) ?? false;
       }
 
       int dayIndex = date.weekday - 1;
-      if (tx.isIncome == true || (tx is Map && tx['isIncome'] == true)) {
-        incomeByDay[dayIndex] += tx.amount ?? tx['amount'] ?? 0;
+      if (isIncome) {
+        incomeByDay[dayIndex] += amount;
       } else {
-        expenseByDay[dayIndex] += tx.amount ?? tx['amount'] ?? 0;
+        expenseByDay[dayIndex] += amount;
       }
     }
 
@@ -83,23 +98,144 @@ class _StatisticScreenState extends State<StatisticScreen> {
     });
   }
 
-  List<dynamic> filterTransactionsByMonth(
+  List<dynamic> filterTransactionsByMonthAndYear(
     List<dynamic> allTransactions,
     int? month,
+    int? year,
   ) {
-    if (month == null) return allTransactions;
-
     return allTransactions.where((tx) {
       DateTime date;
-      if (tx.date is DateTime) {
+      if (tx is Map && tx.containsKey('date')) {
+        date = DateTime.parse(tx['date'].toString());
+      } else if (tx.date is DateTime) {
         date = tx.date;
-      } else if (tx['date'] is String) {
-        date = DateTime.parse(tx['date']);
       } else {
         date = DateTime.now();
       }
-      return date.month == month;
+
+      bool matchesMonth = (month == null || date.month == month);
+      bool matchesYear = (year == null || date.year == year);
+
+      return matchesMonth && matchesYear;
     }).toList();
+  }
+
+  Future<void> _generatePdf(
+    List<dynamic> transactions,
+    double balance,
+    String periodDisplay,
+  ) async {
+    // renamed period to periodDisplay
+    final pdf = pw.Document();
+
+    double totalIncome = 0;
+    double totalExpense = 0;
+
+    for (var tx in transactions) {
+      double amount = 0;
+      bool isIncome = false;
+
+      if (tx is Map) {
+        amount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
+        isIncome = (tx['isIncome'] as bool?) ?? false;
+      } else {
+        amount = (tx.amount as num?)?.toDouble() ?? 0.0;
+        isIncome = (tx.isIncome as bool?) ?? false;
+      }
+
+      if (isIncome) {
+        totalIncome += amount;
+      } else {
+        totalExpense += amount;
+      }
+    }
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Laporan Statistik Keuangan',
+                style: pw.TextStyle(
+                  fontSize: 24,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Text(
+                'Periode: $periodDisplay', // Menggunakan periodDisplay yang lebih deskriptif
+                style: pw.TextStyle(fontSize: 16),
+              ),
+              pw.SizedBox(height: 20),
+              pw.Text(
+                'Ringkasan Saldo:',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 5),
+              pw.Text(
+                'Total Saldo: ${CurrencyFormat.convertToIdr(balance, 2)}',
+              ),
+              pw.Text('Total Pemasukan: ${formatRupiah(totalIncome)}'),
+              pw.Text('Total Pengeluaran: ${formatRupiah(totalExpense)}'),
+              pw.SizedBox(height: 20),
+              pw.Text(
+                'Daftar Transaksi:',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Table.fromTextArray(
+                headers: ['Tanggal', 'Deskripsi', 'Jumlah', 'Tipe'],
+                data:
+                    transactions.map((tx) {
+                      DateTime date;
+                      String title;
+                      double amount;
+                      bool isIncome;
+
+                      if (tx is Map) {
+                        date = DateTime.parse(tx['date'].toString());
+                        title = tx['title']?.toString() ?? 'N/A';
+                        amount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
+                        isIncome = (tx['isIncome'] as bool?) ?? false;
+                      } else {
+                        date = tx.date as DateTime;
+                        title = tx.title?.toString() ?? 'N/A';
+                        amount = (tx.amount as num?)?.toDouble() ?? 0.0;
+                        isIncome = (tx.isIncome as bool?) ?? false;
+                      }
+
+                      String formattedDate = DateFormat(
+                        'dd MMM yyyy',
+                      ).format(date);
+                      String type = isIncome ? 'Pemasukan' : 'Pengeluaran';
+
+                      return [formattedDate, title, formatRupiah(amount), type];
+                    }).toList(),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                cellAlignment: pw.Alignment.centerLeft,
+                border: pw.TableBorder.all(color: PdfColors.black),
+                cellPadding: const pw.EdgeInsets.all(5),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    // Gunakan periodString untuk nama file, karena itu sudah cukup deskriptif
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'laporan_statistik_${periodDisplay.replaceAll(' ', '_')}.pdf',
+    );
   }
 
   @override
@@ -110,9 +246,10 @@ class _StatisticScreenState extends State<StatisticScreen> {
     int? selectedMonthIndex =
         selectedMonth != null ? months.indexOf(selectedMonth!) + 1 : null;
 
-    final filteredTransactions = filterTransactionsByMonth(
+    final filteredTransactions = filterTransactionsByMonthAndYear(
       allTransactions,
       selectedMonthIndex,
+      selectedYear,
     );
 
     final chartData = generateChartData(filteredTransactions);
@@ -127,6 +264,30 @@ class _StatisticScreenState extends State<StatisticScreen> {
           .reduce((a, b) => a > b ? a : b);
       maxY = (maxIncome > maxExpense ? maxIncome : maxExpense) * 1.2;
       if (maxY < 1000000) maxY = 1000000;
+    }
+
+    // NEW: Logic for periodDisplayString that goes into the PDF content
+    String periodDisplayString;
+    if (selectedMonth != null && selectedYear != null) {
+      periodDisplayString = 'Bulan: $selectedMonth, Tahun: $selectedYear';
+    } else if (selectedMonth != null) {
+      periodDisplayString = 'Bulan: $selectedMonth (Semua Tahun)';
+    } else if (selectedYear != null) {
+      periodDisplayString = 'Tahun: $selectedYear (Semua Bulan)';
+    } else {
+      periodDisplayString = 'Semua Waktu';
+    }
+
+    // The filename string can be simpler, or use periodDisplayString with replacements
+    String filenamePeriodString;
+    if (selectedMonth != null && selectedYear != null) {
+      filenamePeriodString = '${selectedMonth}_$selectedYear';
+    } else if (selectedMonth != null) {
+      filenamePeriodString = selectedMonth!;
+    } else if (selectedYear != null) {
+      filenamePeriodString = selectedYear.toString();
+    } else {
+      filenamePeriodString = 'Semua_Waktu';
     }
 
     return Scaffold(
@@ -185,6 +346,36 @@ class _StatisticScreenState extends State<StatisticScreen> {
                       onChanged: (String? value) {
                         setState(() {
                           selectedMonth = value;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: DropdownButton<int>(
+                      value: selectedYear,
+                      hint: const Text('Pilih Tahun'),
+                      underline: const SizedBox(),
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: null,
+                          child: Text('Semua Tahun'),
+                        ),
+                        ...getYears().map((year) {
+                          return DropdownMenuItem<int>(
+                            value: year,
+                            child: Text(year.toString()),
+                          );
+                        }).toList(),
+                      ],
+                      onChanged: (int? value) {
+                        setState(() {
+                          selectedYear = value;
                         });
                       },
                     ),
@@ -281,6 +472,32 @@ class _StatisticScreenState extends State<StatisticScreen> {
                   const SizedBox(width: 20),
                   legendItem(Colors.red, "Pengeluaran"),
                 ],
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Meneruskan periodDisplayString dan filenamePeriodString
+                    _generatePdf(
+                      filteredTransactions,
+                      balance,
+                      periodDisplayString,
+                    );
+                  },
+                  icon: const Icon(Icons.print),
+                  label: const Text('Cetak Laporan PDF'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

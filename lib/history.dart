@@ -4,7 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:apk_catatan_keuangan/provider/transaction.dart';
 import 'package:apk_catatan_keuangan/models/transaction.dart'
-    as my_transaction; // untuk menghindari konflik nama
+    as my_transaction; 
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -94,18 +94,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         value: selectedMonth,
                         hint: const Text('Pilih Bulan'),
                         underline: const SizedBox(),
-                        items: [
-                          const DropdownMenuItem<String>(
-                            value: null,
-                            child: Text('Semua Bulan'),
-                          ),
-                          ...months.map((month) {
-                            return DropdownMenuItem<String>(
-                              value: month,
-                              child: Text(month),
-                            );
-                          }).toList(),
-                        ],
+                        items: months.map((month) { // THIS IS THE CHANGE
+                          return DropdownMenuItem<String>(
+                            value: month,
+                            child: Text(month),
+                          );
+                        }).toList(),
                         onChanged: (val) {
                           if (val != null) {
                             setState(() {

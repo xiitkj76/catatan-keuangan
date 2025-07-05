@@ -84,9 +84,11 @@ class DashboardPage extends StatelessWidget {
         .where((t) => !t.isIncome)
         .fold(0.0, (sum, t) => sum + t.amount);
     final total = totalIncome + totalExpense;
-    final incomePercentage = total > 0 ? (totalIncome / total * 100) : 50;
-    final expensePercentage = total > 0 ? (totalExpense / total * 100) : 30;
-    final savingsPercentage = 100 - incomePercentage - expensePercentage;
+    // Ensure percentages are calculated correctly, handle total == 0
+    final incomePercentage = total > 0 ? (totalIncome / total * 100) : 0.0;
+    final expensePercentage = total > 0 ? (totalExpense / total * 100) : 0.0;
+    // Savings is what's left from 100% after income and expense
+    final savingsPercentage = 100.0 - incomePercentage - expensePercentage;
 
     return SafeArea(
       child: Stack(
@@ -99,257 +101,284 @@ class DashboardPage extends StatelessWidget {
               ),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          SizedBox(height: 5),
-                          Text(
-                            "Welcome",
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
-                          ),
-                          Text(
-                            "Nai Wanwan",
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Tooltip(
-                        message: 'Notification',
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.notifications,
-                            color: Colors.grey,
-                          ),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) => const NotificationScreen(),
-                              ),
-                            );
-                          },
+            child: Column(
+              // Changed from SingleChildScrollView to Column
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header - This part will remain fixed at the top
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        SizedBox(height: 5),
+                        Text(
+                          "Welcome",
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "My Finances",
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                        Text(
+                          "Nai Wanwan",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
-                          const SizedBox(height: 5),
-                          Text(
-                            CurrencyFormat.convertToIdr(
-                              transactionsProvider.balance,
-                              2,
-                            ),
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 15),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildFinanceButton(
-                                Icons.account_balance_wallet,
-                                "Income",
-                                () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const IncomeScreen(),
-                                  ),
-                                ),
-                              ),
-                              _buildFinanceButton(
-                                Icons.credit_card,
-                                "Outcome",
-                                () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const OutcomeScreen(),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Last Transaction Section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "Last Transaction",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Transaction List
-                  if (recentTransactions.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Center(child: Text("No recent transactions")),
-                    )
-                  else
-                    ...(() {
-                      List txs = List.from(recentTransactions);
-                      txs.sort(
-                        (a, b) => b.date.compareTo(a.date),
-                      ); // Sort terbaru
-                      return txs
-                          .take(3)
-                          .map(
-                            (tx) => _buildTransactionItem(
-                              tx.isIncome
-                                  ? Icons.account_balance_wallet
-                                  : Icons.credit_card,
-                              "${tx.isIncome ? '+' : '-'}Rp${NumberFormat("#,###").format(tx.amount)}",
-                              DateFormat('hh:mm a').format(tx.date),
-                              tx.isIncome ? Colors.green : Colors.red,
+                      ],
+                    ),
+                    Tooltip(
+                      message: 'Notification',
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.notifications,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const NotificationScreen(),
                             ),
                           );
-                    })().toList(),
-
-                  const SizedBox(height: 20),
-
-                  // Financial Condition Pie Chart
-                  Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(15),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.shade300,
-                            blurRadius: 10,
-                            spreadRadius: 2,
-                          ),
-                        ],
+                        },
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Financial Overview",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // My Finances Card - This part will also remain fixed
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "My Finances",
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          CurrencyFormat.convertToIdr(
+                            transactionsProvider.balance,
+                            2,
                           ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              SizedBox(
-                                height: 150,
-                                width: 150,
-                                child: PieChart(
-                                  PieChartData(
-                                    sections: [
-                                      PieChartSectionData(
-                                        color: Colors.green,
-                                        value: totalIncome,
-                                        title:
-                                            '${incomePercentage.toStringAsFixed(0)}%',
-                                        radius: 40,
-                                        titleStyle: const TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      PieChartSectionData(
-                                        color: Colors.red,
-                                        value: totalExpense,
-                                        title:
-                                            '${expensePercentage.toStringAsFixed(0)}%',
-                                        radius: 40,
-                                        titleStyle: const TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      PieChartSectionData(
-                                        color: Colors.blue,
-                                        value: total,
-                                        title:
-                                            '${savingsPercentage.toStringAsFixed(0)}%',
-                                        radius: 40,
-                                        titleStyle: const TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                    sectionsSpace: 2,
-                                    centerSpaceRadius: 30,
-                                  ),
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildFinanceButton(
+                              Icons.account_balance_wallet,
+                              "Income",
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const IncomeScreen(),
                                 ),
                               ),
-                              const SizedBox(width: 20),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildLegendItem(Colors.green, "Income"),
-                                  const SizedBox(height: 8),
-                                  _buildLegendItem(Colors.red, "Expenses"),
-                                  const SizedBox(height: 8),
-                                  _buildLegendItem(Colors.blue, "Savings"),
-                                ],
+                            ),
+                            _buildFinanceButton(
+                              Icons.credit_card,
+                              "Outcome",
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const OutcomeScreen(),
+                                ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 20),
+
+                // This Expanded widget will make the remaining content scrollable
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Last Transaction Section
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: const [
+                            // Added const here
+                            Text(
+                              "Last Transaction",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Transaction List
+                        if (recentTransactions.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: Text("No recent transactions"),
+                            ),
+                          )
+                        else
+                          ...(() {
+                            List txs = List.from(recentTransactions);
+                            txs.sort(
+                              (a, b) => b.date.compareTo(a.date),
+                            ); // Sort terbaru
+                            return txs
+                                .take(3)
+                                .map(
+                                  (tx) => _buildTransactionItem(
+                                    tx.isIncome
+                                        ? Icons.account_balance_wallet
+                                        : Icons.credit_card,
+                                    "${tx.isIncome ? '+' : '-'}Rp${NumberFormat("#,###").format(tx.amount)}",
+                                    DateFormat('hh:mm a').format(tx.date),
+                                    tx.isIncome ? Colors.green : Colors.red,
+                                  ),
+                                );
+                          })().toList(),
+
+                        const SizedBox(height: 20),
+
+                        // Financial Condition Pie Chart
+                        Card(
+                          elevation: 4,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(15),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.shade300,
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Financial Overview",
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Row(
+                                  children: [
+                                    SizedBox(
+                                      height: 150,
+                                      width: 150,
+                                      child: PieChart(
+                                        PieChartData(
+                                          sections: [
+                                            PieChartSectionData(
+                                              color: Colors.green,
+                                              value: totalIncome,
+                                              title:
+                                                  '${incomePercentage.toStringAsFixed(0)}%',
+                                              radius: 40,
+                                              titleStyle: const TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            PieChartSectionData(
+                                              color: Colors.red,
+                                              value: totalExpense,
+                                              title:
+                                                  '${expensePercentage.toStringAsFixed(0)}%',
+                                              radius: 40,
+                                              titleStyle: const TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            // Handle case where total is 0 or savings is negative
+                                            if (savingsPercentage > 0)
+                                              PieChartSectionData(
+                                                color: Colors.blue,
+                                                value:
+                                                    total > 0
+                                                        ? (total *
+                                                            savingsPercentage /
+                                                            100)
+                                                        : 1.0, // Give a small value if total is 0 to show the slice
+                                                title:
+                                                    '${savingsPercentage.toStringAsFixed(0)}%',
+                                                radius: 40,
+                                                titleStyle: const TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                          ],
+                                          sectionsSpace: 2,
+                                          centerSpaceRadius: 30,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 20),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _buildLegendItem(
+                                          Colors.green,
+                                          "Income",
+                                        ),
+                                        const SizedBox(height: 8),
+                                        _buildLegendItem(
+                                          Colors.red,
+                                          "Expenses",
+                                        ),
+                                        const SizedBox(height: 8),
+                                        _buildLegendItem(
+                                          Colors.blue,
+                                          "Savings",
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
